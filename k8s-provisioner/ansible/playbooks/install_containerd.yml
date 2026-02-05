@@ -1,0 +1,82 @@
+---
+# Install containerd container runtime
+- name: Install Container Runtime (containerd)
+  hosts: k8s_cluster
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Install required packages
+      dnf:
+        name:
+          - yum-utils
+          - device-mapper-persistent-data
+          - lvm2
+        state: present
+
+    - name: Add Docker repository (for containerd)
+      yum_repository:
+        name: docker-ce
+        description: Docker CE Stable
+        baseurl: https://download.docker.com/linux/centos/$releasever/$basearch/stable
+        gpgcheck: yes
+        gpgkey: https://download.docker.com/linux/centos/gpg
+        enabled: yes
+
+    - name: Install containerd
+      dnf:
+        name: containerd.io
+        state: present
+
+    - name: Create containerd config directory
+      file:
+        path: /etc/containerd
+        state: directory
+        mode: '0755'
+
+    - name: Generate default containerd config
+      shell: containerd config default > /etc/containerd/config.toml
+      changed_when: true
+
+    - name: Configure containerd to use systemd cgroup driver
+      replace:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup = false'
+        replace: 'SystemdCgroup = true'
+
+    - name: Stop containerd if running
+      systemd:
+        name: containerd
+        state: stopped
+      ignore_errors: yes
+
+    - name: Enable and start containerd
+      systemd:
+        name: containerd
+        state: started
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Wait for containerd socket
+      wait_for:
+        path: /run/containerd/containerd.sock
+        timeout: 30
+
+    - name: Verify containerd is running
+      shell: systemctl is-active containerd
+      register: containerd_status
+      changed_when: false
+      retries: 3
+      delay: 5
+      until: containerd_status.stdout == "active"
+
+    - name: Test containerd with crictl
+      shell: crictl info
+      register: crictl_info
+      changed_when: false
+      retries: 3
+      delay: 5
+      until: crictl_info.rc == 0
+
+    - name: Display containerd status
+      debug:
+        msg: "containerd is {{ containerd_status.stdout }} and crictl working"

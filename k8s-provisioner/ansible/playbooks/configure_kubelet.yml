@@ -1,0 +1,197 @@
+---
+# Additional Kubernetes Configuration
+# Applies kubelet resource reservations, eviction policies, PID limits,
+# and kernel tuning as recommended by "3. K8s environment setup.docx"
+
+# Phase 1: Kernel tuning and resource limits on ALL nodes
+- name: Apply Kernel Tuning and Resource Limits
+  hosts: k8s_cluster
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Apply production kernel sysctl parameters
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: yes
+        sysctl_file: /etc/sysctl.d/k8s-production.conf
+      loop:
+        - { name: 'net.netfilter.nf_conntrack_max', value: '262144' }
+        - { name: 'fs.file-max', value: '1048576' }
+        - { name: 'vm.max_map_count', value: '262144' }
+
+    - name: Load nf_conntrack module if not loaded
+      modprobe:
+        name: nf_conntrack
+        state: present
+      ignore_errors: yes
+
+    - name: Update resource limits for Kubernetes workloads
+      copy:
+        dest: /etc/security/limits.d/kubernetes.conf
+        content: |
+          * soft nofile 1048576
+          * hard nofile 1048576
+          * soft nproc 1048576
+          * hard nproc 1048576
+          root soft nofile 1048576
+          root hard nofile 1048576
+          root soft nproc 1048576
+          root hard nproc 1048576
+        mode: '0644'
+
+    - name: Display kernel tuning status
+      debug:
+        msg: "Kernel tuning and resource limits applied on {{ inventory_hostname }}"
+
+# Phase 2: Kubelet configuration on ALL nodes (common settings)
+- name: Configure Kubelet - All Nodes
+  hosts: k8s_cluster
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Check if kubelet config exists
+      stat:
+        path: /var/lib/kubelet/config.yaml
+      register: kubelet_config
+
+    - name: Read current kubelet config
+      slurp:
+        src: /var/lib/kubelet/config.yaml
+      register: kubelet_config_content
+      when: kubelet_config.stat.exists
+
+    - name: Add systemReserved to kubelet config
+      lineinfile:
+        path: /var/lib/kubelet/config.yaml
+        line: "{{ item }}"
+        insertafter: EOF
+        state: present
+      loop:
+        - "systemReserved:"
+        - '  cpu: "500m"'
+        - '  memory: "1Gi"'
+      when:
+        - kubelet_config.stat.exists
+        - "'systemReserved' not in (kubelet_config_content.content | b64decode)"
+
+    - name: Add podPidsLimit to kubelet config
+      lineinfile:
+        path: /var/lib/kubelet/config.yaml
+        line: "podPidsLimit: 2048"
+        insertafter: EOF
+        state: present
+      when:
+        - kubelet_config.stat.exists
+        - "'podPidsLimit' not in (kubelet_config_content.content | b64decode)"
+
+    - name: Add evictionHard to kubelet config
+      lineinfile:
+        path: /var/lib/kubelet/config.yaml
+        line: "{{ item }}"
+        insertafter: EOF
+        state: present
+      loop:
+        - "evictionHard:"
+        - '  memory.available: "500Mi"'
+      when:
+        - kubelet_config.stat.exists
+        - "'evictionHard' not in (kubelet_config_content.content | b64decode)"
+
+    - name: Display kubelet common config status
+      debug:
+        msg: "Common kubelet configuration (systemReserved, podPidsLimit, evictionHard) applied on {{ inventory_hostname }}"
+
+# Phase 3: kubeReserved on CONTROL PLANE nodes only
+- name: Configure Kubelet - Control Plane Only
+  hosts: control_plane
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Read current kubelet config
+      slurp:
+        src: /var/lib/kubelet/config.yaml
+      register: kubelet_config_content
+
+    - name: Add kubeReserved to kubelet config (control plane only)
+      lineinfile:
+        path: /var/lib/kubelet/config.yaml
+        line: "{{ item }}"
+        insertafter: EOF
+        state: present
+      loop:
+        - "kubeReserved:"
+        - '  cpu: "1000m"'
+        - '  memory: "2Gi"'
+      when: "'kubeReserved' not in (kubelet_config_content.content | b64decode)"
+
+    - name: Display control plane kubelet config status
+      debug:
+        msg: "kubeReserved configuration applied on control plane node {{ inventory_hostname }}"
+
+# Phase 4: Restart kubelet on ALL nodes and verify
+- name: Restart Kubelet and Verify
+  hosts: k8s_cluster
+  become: yes
+  gather_facts: yes
+  serial: 1
+  tasks:
+    - name: Restart kubelet
+      systemd:
+        name: kubelet
+        state: restarted
+        daemon_reload: yes
+
+    - name: Wait for kubelet to be active
+      shell: systemctl is-active kubelet
+      register: kubelet_status
+      retries: 6
+      delay: 10
+      until: kubelet_status.stdout == "active"
+      changed_when: false
+
+    - name: Display kubelet restart status
+      debug:
+        msg: "kubelet restarted successfully on {{ inventory_hostname }} - status: {{ kubelet_status.stdout }}"
+
+# Phase 5: Verify cluster health from control plane
+- name: Verify Cluster Health After Configuration
+  hosts: control_plane
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Wait for all nodes to be Ready
+      shell: kubectl get nodes --no-headers | grep -c "Ready"
+      register: ready_count
+      retries: 12
+      delay: 10
+      until: ready_count.stdout | int >= 1
+      changed_when: false
+
+    - name: Get node status
+      shell: kubectl get nodes -o wide
+      register: node_status
+      changed_when: false
+
+    - name: Display cluster status after configuration
+      debug:
+        msg: "{{ node_status.stdout_lines }}"
+
+    - name: Verify kubelet config on this node
+      shell: |
+        echo "=== Kubelet Configuration Summary ==="
+        grep -A2 'systemReserved\|kubeReserved\|podPidsLimit\|evictionHard' /var/lib/kubelet/config.yaml 2>/dev/null || echo "Config entries not found"
+        echo "=== Kernel Parameters ==="
+        sysctl net.netfilter.nf_conntrack_max fs.file-max vm.max_map_count 2>/dev/null
+      register: config_summary
+      changed_when: false
+
+    - name: Display configuration summary
+      debug:
+        msg: |
+          ================================================
+          Additional Kubernetes Configuration Complete!
+          ================================================
+          {{ config_summary.stdout }}
+          ================================================

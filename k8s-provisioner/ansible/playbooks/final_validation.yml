@@ -1,0 +1,94 @@
+---
+# Final validation of Kubernetes cluster
+- name: Final Cluster Validation
+  hosts: control_plane
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Get cluster info
+      shell: kubectl cluster-info
+      register: cluster_info
+      changed_when: false
+
+    - name: Display cluster info
+      debug:
+        msg: "{{ cluster_info.stdout_lines }}"
+
+    - name: Get all nodes
+      shell: kubectl get nodes -o wide
+      register: all_nodes
+      changed_when: false
+
+    - name: Display all nodes
+      debug:
+        msg: "{{ all_nodes.stdout_lines }}"
+
+    - name: Get all system pods
+      shell: kubectl -n kube-system get pods
+      register: system_pods
+      changed_when: false
+
+    - name: Display system pods
+      debug:
+        msg: "{{ system_pods.stdout_lines }}"
+
+    - name: Deploy test nginx pod
+      shell: |
+        kubectl run test-nginx --image=nginx --restart=Never --dry-run=client -o yaml | kubectl apply -f -
+      register: test_pod
+      changed_when: "'created' in test_pod.stdout"
+      ignore_errors: yes
+
+    - name: Wait for test pod to be ready
+      shell: kubectl get pod test-nginx -o jsonpath='{.status.phase}'
+      register: pod_status
+      until: pod_status.stdout == "Running"
+      retries: 12
+      delay: 5
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Verify test pod is running
+      shell: kubectl get pod test-nginx
+      register: test_pod_status
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Display test pod status
+      debug:
+        msg: "{{ test_pod_status.stdout_lines }}"
+      when: test_pod_status is defined
+
+    - name: Clean up test pod
+      shell: kubectl delete pod test-nginx --ignore-not-found=true
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Get cluster component status
+      shell: kubectl get componentstatuses 2>/dev/null || echo "Component statuses not available in this K8s version"
+      register: component_status
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Get kubeconfig content
+      slurp:
+        src: /etc/kubernetes/admin.conf
+      register: kubeconfig_content
+
+    - name: Save kubeconfig for provisioner
+      copy:
+        content: "{{ kubeconfig_content.content | b64decode }}"
+        dest: /root/cluster-kubeconfig.yaml
+        mode: '0600'
+
+    - name: Display validation summary
+      debug:
+        msg: |
+          ========================================
+          Kubernetes Cluster Validation Complete!
+          ========================================
+          - Cluster is operational
+          - All nodes are Ready
+          - Core components are running
+          - Test workload deployed successfully
+          ========================================

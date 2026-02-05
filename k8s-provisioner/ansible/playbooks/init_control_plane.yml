@@ -1,0 +1,67 @@
+---
+# Initialize Kubernetes control plane
+- name: Initialize Control Plane
+  hosts: control_plane
+  become: yes
+  gather_facts: yes
+  vars:
+    k8s_version: "1.28.3"
+    pod_network_cidr: "10.244.0.0/16"
+  tasks:
+    - name: Check if cluster is already initialized
+      stat:
+        path: /etc/kubernetes/admin.conf
+      register: kubeconfig_stat
+
+    - name: Initialize Kubernetes cluster
+      shell: |
+        kubeadm init \
+          --pod-network-cidr={{ pod_network_cidr }} \
+          --kubernetes-version={{ k8s_version }} \
+          --apiserver-advertise-address={{ ansible_host }}
+      when: not kubeconfig_stat.stat.exists
+      register: kubeadm_init
+
+    - name: Create .kube directory for root
+      file:
+        path: /root/.kube
+        state: directory
+        mode: '0755'
+
+    - name: Copy admin.conf to root's kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: yes
+        mode: '0600'
+
+    - name: Generate join command for workers
+      shell: kubeadm token create --print-join-command
+      register: join_command
+      changed_when: false
+
+    - name: Store join command
+      set_fact:
+        kubeadm_join_command: "{{ join_command.stdout }}"
+        cacheable: yes
+
+    - name: Save join command to file on control plane
+      copy:
+        content: "{{ join_command.stdout }}"
+        dest: /root/kubeadm_join_command.sh
+        mode: '0700'
+
+    - name: Fetch kubeconfig to local
+      fetch:
+        src: /etc/kubernetes/admin.conf
+        dest: /tmp/kubeconfig-{{ ansible_hostname }}
+        flat: yes
+
+    - name: Display control plane status
+      shell: kubectl get nodes
+      register: nodes_status
+      changed_when: false
+
+    - name: Show cluster nodes
+      debug:
+        msg: "{{ nodes_status.stdout_lines }}"

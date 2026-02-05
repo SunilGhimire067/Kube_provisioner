@@ -1,0 +1,53 @@
+---
+# Install Calico CNI
+- name: Install Calico CNI
+  hosts: control_plane
+  become: yes
+  gather_facts: yes
+  vars:
+    calico_version: "v3.26.4"
+  tasks:
+    - name: Download Calico manifest
+      get_url:
+        url: "https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/calico.yaml"
+        dest: /root/calico.yaml
+        mode: '0644'
+
+    - name: Apply Calico manifest
+      shell: kubectl apply -f /root/calico.yaml
+      register: calico_apply
+      changed_when: "'created' in calico_apply.stdout or 'configured' in calico_apply.stdout"
+
+    - name: Wait for Calico pods to be ready
+      shell: kubectl -n kube-system get pods -l k8s-app=calico-node -o jsonpath='{.items[*].status.phase}'
+      register: calico_pods
+      until: "'Running' in calico_pods.stdout"
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: Verify Calico installation
+      shell: kubectl -n kube-system get pods -l k8s-app=calico-node
+      register: calico_status
+      changed_when: false
+
+    - name: Display Calico pods
+      debug:
+        msg: "{{ calico_status.stdout_lines }}"
+
+    - name: Wait for all nodes to be Ready
+      shell: kubectl get nodes --no-headers | grep -v "Ready" | wc -l
+      register: not_ready_nodes
+      until: not_ready_nodes.stdout | int == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: Show final cluster status
+      shell: kubectl get nodes -o wide
+      register: final_nodes
+      changed_when: false
+
+    - name: Display cluster nodes
+      debug:
+        msg: "{{ final_nodes.stdout_lines }}"

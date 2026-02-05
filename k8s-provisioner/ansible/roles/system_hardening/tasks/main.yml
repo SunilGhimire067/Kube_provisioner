@@ -1,0 +1,156 @@
+---
+# System Hardening Tasks based on CIS Linux Benchmark
+
+- name: Disable swap
+  shell: swapoff -a
+  when: ansible_swaptotal_mb > 0
+
+- name: Remove swap from /etc/fstab
+  lineinfile:
+    path: /etc/fstab
+    regexp: '.*swap.*'
+    state: absent
+
+- name: Find active systemd swap units
+  shell: systemctl list-units --type=swap --state=active --no-legend | awk '{print $1}'
+  register: active_swap_units
+  changed_when: false
+
+- name: Mask systemd swap units to prevent reactivation on reboot
+  systemd:
+    name: "{{ item }}"
+    masked: yes
+    state: stopped
+  loop: "{{ active_swap_units.stdout_lines }}"
+  when: active_swap_units.stdout_lines | length > 0
+
+- name: Check if swap logical volume exists (LVM)
+  shell: lvs --noheadings -o lv_path --select 'lv_attr=~[^s].*' 2>/dev/null | grep -i swap || true
+  register: swap_lv
+  changed_when: false
+
+- name: Remove swap logical volume if present
+  shell: "lvremove -f {{ item }}"
+  loop: "{{ swap_lv.stdout_lines | map('trim') | select | list }}"
+  when: swap_lv.stdout_lines | map('trim') | select | list | length > 0
+
+- name: Load kernel modules
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - overlay
+    - br_netfilter
+
+- name: Persist kernel modules
+  copy:
+    dest: /etc/modules-load.d/k8s.conf
+    content: |
+      overlay
+      br_netfilter
+
+- name: Set sysctl parameters for Kubernetes
+  sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+    sysctl_file: /etc/sysctl.d/99-kubernetes.conf
+  loop:
+    - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+    - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+    - { name: 'net.ipv4.ip_forward', value: '1' }
+    - { name: 'net.ipv4.conf.all.forwarding', value: '1' }
+    - { name: 'net.ipv6.conf.all.forwarding', value: '1' }
+    - { name: 'vm.swappiness', value: '0' }
+
+- name: Disable SELinux (if present)
+  selinux:
+    state: disabled
+  when: ansible_selinux is defined and ansible_selinux.status != 'disabled'
+  ignore_errors: yes
+
+- name: Configure firewall for Kubernetes (Rocky/RHEL)
+  firewalld:
+    port: "{{ item }}"
+    permanent: yes
+    state: enabled
+  loop:
+    - 6443/tcp      # Kubernetes API
+    - 2379-2380/tcp # etcd
+    - 10250/tcp     # kubelet
+    - 10251/tcp     # kube-scheduler
+    - 10252/tcp     # kube-controller-manager
+  when: ansible_os_family == "RedHat"
+  notify: reload firewalld
+
+- name: Configure firewall for Kubernetes (Ubuntu)
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "6443"
+    - "2379:2380"
+    - "10250"
+    - "10251"
+    - "10252"
+  when: ansible_os_family == "Debian"
+
+- name: Set timezone to UTC
+  timezone:
+    name: UTC
+
+- name: Update all packages
+  package:
+    name: '*'
+    state: latest
+  when: update_packages | default(false)
+
+- name: Install required packages
+  package:
+    name:
+      - curl
+      - wget
+      - vim
+      - git
+      - net-tools
+      - socat
+      - conntrack
+      - ipset
+      - ebtables
+    state: present
+
+- name: Harden SSH configuration
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+  loop:
+    - { regexp: '^PermitRootLogin', line: 'PermitRootLogin prohibit-password' }
+    - { regexp: '^PasswordAuthentication', line: 'PasswordAuthentication no' }
+    - { regexp: '^X11Forwarding', line: 'X11Forwarding no' }
+    - { regexp: '^MaxAuthTries', line: 'MaxAuthTries 3' }
+    - { regexp: '^ClientAliveInterval', line: 'ClientAliveInterval 300' }
+    - { regexp: '^ClientAliveCountMax', line: 'ClientAliveCountMax 2' }
+  notify: restart sshd
+
+- name: Set file permissions on sensitive files
+  file:
+    path: "{{ item }}"
+    mode: '0600'
+  loop:
+    - /etc/ssh/sshd_config
+    - /etc/shadow
+
+- name: Ensure auditd is installed
+  package:
+    name: audit
+    state: present
+
+- name: Start and enable auditd
+  service:
+    name: auditd
+    state: started
+    enabled: yes

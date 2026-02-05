@@ -1,0 +1,52 @@
+---
+# Install Kubernetes components (kubeadm, kubelet, kubectl)
+- name: Install Kubernetes Components
+  hosts: k8s_cluster
+  become: yes
+  gather_facts: yes
+  vars:
+    k8s_version: "1.28.3"
+  tasks:
+    - name: Add Kubernetes repository
+      yum_repository:
+        name: kubernetes
+        description: Kubernetes
+        baseurl: https://pkgs.k8s.io/core:/stable:/v1.28/rpm/
+        gpgcheck: yes
+        gpgkey: https://pkgs.k8s.io/core:/stable:/v1.28/rpm/repodata/repomd.xml.key
+        enabled: yes
+        exclude: kubelet kubeadm kubectl cri-tools kubernetes-cni
+
+    - name: Install Kubernetes packages
+      dnf:
+        name:
+          - kubelet-{{ k8s_version }}
+          - kubeadm-{{ k8s_version }}
+          - kubectl-{{ k8s_version }}
+        state: present
+        disable_excludes: kubernetes
+
+    - name: Enable kubelet service
+      systemd:
+        name: kubelet
+        enabled: yes
+        state: started
+
+    - name: Configure crictl to use containerd
+      copy:
+        dest: /etc/crictl.yaml
+        content: |
+          runtime-endpoint: unix:///run/containerd/containerd.sock
+          image-endpoint: unix:///run/containerd/containerd.sock
+          timeout: 10
+          debug: false
+        mode: '0644'
+
+    - name: Verify kubeadm installation
+      shell: kubeadm version -o short
+      register: kubeadm_version
+      changed_when: false
+
+    - name: Display installed Kubernetes version
+      debug:
+        msg: "Installed kubeadm version: {{ kubeadm_version.stdout }}"

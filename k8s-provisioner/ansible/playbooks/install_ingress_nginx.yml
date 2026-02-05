@@ -1,0 +1,46 @@
+---
+# Install NGINX Ingress Controller
+- name: Install NGINX Ingress Controller
+  hosts: control_plane
+  become: yes
+  gather_facts: yes
+  vars:
+    nginx_ingress_version: "v1.9.4"
+  tasks:
+    - name: Download NGINX Ingress manifest
+      get_url:
+        url: "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-{{ nginx_ingress_version }}/deploy/static/provider/baremetal/deploy.yaml"
+        dest: /root/ingress-nginx.yaml
+        mode: '0644'
+
+    - name: Apply NGINX Ingress manifest
+      shell: kubectl apply -f /root/ingress-nginx.yaml
+      register: ingress_apply
+      changed_when: "'created' in ingress_apply.stdout or 'configured' in ingress_apply.stdout"
+
+    - name: Wait for Ingress Controller to be ready
+      shell: kubectl -n ingress-nginx get pods -l app.kubernetes.io/component=controller -o jsonpath='{.items[0].status.phase}'
+      register: ingress_status
+      until: ingress_status.stdout == "Running"
+      retries: 30
+      delay: 10
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Verify Ingress Controller installation
+      shell: kubectl -n ingress-nginx get pods
+      register: ingress_pods
+      changed_when: false
+
+    - name: Display Ingress Controller pods
+      debug:
+        msg: "{{ ingress_pods.stdout_lines }}"
+
+    - name: Get Ingress Controller service
+      shell: kubectl -n ingress-nginx get svc
+      register: ingress_svc
+      changed_when: false
+
+    - name: Display Ingress services
+      debug:
+        msg: "{{ ingress_svc.stdout_lines }}"

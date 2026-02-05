@@ -1,0 +1,171 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: k8s-prov-postgres
+    environment:
+      POSTGRES_USER: k8s_provisioner
+      POSTGRES_PASSWORD: SecurePassword123!
+      POSTGRES_DB: k8s_provisioner
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U k8s_provisioner"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - k8s-prov-network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: k8s-prov-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - k8s-prov-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: k8s-prov-backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://k8s_provisioner:SecurePassword123!@postgres:5432/k8s_provisioner
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SECRET_KEY=15f087b3f0a01a22193739d8353693bba48ee18c9f2d3a9e269e9719d8249b7b
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - ENCRYPTION_KEY=CkyqGuCbPzT6OfVX3JZBevLZvJPS1lvbBQgW__U_i_I=
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
+      - ENVIRONMENT=development
+    volumes:
+      - ./backend:/app
+      - ./ansible:/ansible
+      - ssh_keys:/app/ssh_keys
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - k8s-prov-network
+
+  # Celery Worker
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: k8s-prov-celery-worker
+    command: celery -A app.tasks.worker worker --loglevel=info --concurrency=4
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://k8s_provisioner:SecurePassword123!@postgres:5432/k8s_provisioner
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SECRET_KEY=15f087b3f0a01a22193739d8353693bba48ee18c9f2d3a9e269e9719d8249b7b
+      - ENCRYPTION_KEY=CkyqGuCbPzT6OfVX3JZBevLZvJPS1lvbBQgW__U_i_I=
+      - PYTHONPATH=/app
+    volumes:
+      - ./backend:/app
+      - ./ansible:/ansible
+      - ssh_keys:/app/ssh_keys
+      - /var/run/docker.sock:/var/run/docker.sock  # If needed for Docker operations
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    networks:
+      - k8s-prov-network
+
+  # Celery Beat (Scheduler)
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: k8s-prov-celery-beat
+    command: celery -A app.tasks.worker beat --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://k8s_provisioner:SecurePassword123!@postgres:5432/k8s_provisioner
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SECRET_KEY=15f087b3f0a01a22193739d8353693bba48ee18c9f2d3a9e269e9719d8249b7b
+      - ENCRYPTION_KEY=CkyqGuCbPzT6OfVX3JZBevLZvJPS1lvbBQgW__U_i_I=
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    networks:
+      - k8s-prov-network
+
+  # Celery Flower (Monitoring)
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: k8s-prov-flower
+    command: celery -A app.tasks.worker flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://k8s_provisioner:SecurePassword123!@postgres:5432/k8s_provisioner
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - SECRET_KEY=15f087b3f0a01a22193739d8353693bba48ee18c9f2d3a9e269e9719d8249b7b
+      - ENCRYPTION_KEY=CkyqGuCbPzT6OfVX3JZBevLZvJPS1lvbBQgW__U_i_I=
+    depends_on:
+      - redis
+      - celery-worker
+    networks:
+      - k8s-prov-network
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: k8s-prov-frontend
+    ports:
+      - "3001:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8000
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - k8s-prov-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  ssh_keys:
+
+networks:
+  k8s-prov-network:
+    driver: bridge

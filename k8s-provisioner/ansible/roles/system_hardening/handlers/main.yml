@@ -1,0 +1,12 @@
+---
+# Handlers for system hardening
+
+- name: reload firewalld
+  service:
+    name: firewalld
+    state: reloaded
+
+- name: restart sshd
+  service:
+    name: sshd
+    state: restarted

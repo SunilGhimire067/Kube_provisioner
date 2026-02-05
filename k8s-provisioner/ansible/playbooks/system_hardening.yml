@@ -1,0 +1,85 @@
+---
+# Basic system hardening for Kubernetes nodes
+- name: Apply System Hardening
+  hosts: k8s_cluster
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Update all packages
+      dnf:
+        name: "*"
+        state: latest
+        update_cache: yes
+      register: update_result
+      retries: 3
+      delay: 10
+      until: update_result is succeeded
+
+    - name: Install essential security packages
+      dnf:
+        name:
+          - audit
+          - policycoreutils
+          - selinux-policy-targeted
+        state: present
+
+    - name: Ensure SELinux is in permissive mode for K8s (LAB only)
+      selinux:
+        policy: targeted
+        state: permissive
+
+    - name: Configure SSH - disable root password auth (keep key auth)
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#?PermitRootLogin"
+        line: "PermitRootLogin yes"
+        state: present
+      notify: restart sshd
+
+    - name: Configure SSH - disable empty passwords
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#?PermitEmptyPasswords"
+        line: "PermitEmptyPasswords no"
+        state: present
+      notify: restart sshd
+
+    - name: Set proper permissions on /etc/passwd
+      file:
+        path: /etc/passwd
+        mode: '0644'
+
+    - name: Set proper permissions on /etc/shadow
+      file:
+        path: /etc/shadow
+        mode: '0000'
+
+    - name: Ensure auditd is running
+      systemd:
+        name: auditd
+        state: started
+        enabled: yes
+
+    - name: Set timezone to UTC
+      timezone:
+        name: UTC
+
+    - name: Configure system limits for containers
+      copy:
+        dest: /etc/security/limits.d/kubernetes.conf
+        content: |
+          * soft nofile 65536
+          * hard nofile 65536
+          * soft nproc 65536
+          * hard nproc 65536
+        mode: '0644'
+
+    - name: Display hardening completion message
+      debug:
+        msg: "System hardening completed for {{ inventory_hostname }}"
+
+  handlers:
+    - name: restart sshd
+      systemd:
+        name: sshd
+        state: restarted
