@@ -8,7 +8,10 @@ import {
   TextField,
   MenuItem,
   Grid,
+  Box,
+  Typography,
 } from '@mui/material';
+import { Dns, Save, Close } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { nodeSchema, NodeFormData } from '../../utils/validation-schemas';
@@ -87,10 +90,64 @@ const NodeFormDialog: React.FC<NodeFormDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-      <DialogTitle>{node ? 'Edit Node' : 'Add Node'}</DialogTitle>
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          background: 'linear-gradient(135deg, rgba(17, 24, 39, 0.98) 0%, rgba(10, 14, 26, 0.98) 100%)',
+          border: '1px solid rgba(0, 212, 255, 0.15)',
+          borderRadius: '12px',
+          backdropFilter: 'blur(20px)',
+          overflow: 'hidden',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '2px',
+            background: 'linear-gradient(90deg, transparent, #00d4ff, #7c4dff, transparent)',
+          },
+        },
+      }}
+    >
+      <DialogTitle
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          pb: 1,
+          borderBottom: '1px solid rgba(0, 212, 255, 0.08)',
+        }}
+      >
+        <Box
+          sx={{
+            width: 36,
+            height: 36,
+            borderRadius: '8px',
+            background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(124, 77, 255, 0.15))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Dns sx={{ color: '#00d4ff', fontSize: 20 }} />
+        </Box>
+        <Box>
+          <Typography variant="h6" sx={{ color: '#e2e8f0', fontWeight: 600, fontSize: '1.1rem' }}>
+            {node ? 'Edit Node' : 'Add Node'}
+          </Typography>
+          <Typography variant="caption" sx={{ color: '#64748b' }}>
+            {node ? 'Update node configuration' : 'Configure a new cluster node'}
+          </Typography>
+        </Box>
+      </DialogTitle>
+
       <form onSubmit={handleSubmit(onSubmit)}>
-        <DialogContent>
+        <DialogContent sx={{ pt: 3 }}>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={6}>
               <Controller
@@ -103,8 +160,11 @@ const NodeFormDialog: React.FC<NodeFormDialogProps> = ({
                     fullWidth
                     margin="normal"
                     error={!!errors.name}
-                    helperText={errors.name?.message}
+                    helperText={errors.name?.message || 'Unique identifier for this node'}
                     placeholder="e.g., control-plane-1"
+                    InputProps={{
+                      sx: { fontFamily: '"JetBrains Mono", monospace', fontSize: '0.9rem' },
+                    }}
                   />
                 )}
               />
@@ -145,8 +205,11 @@ const NodeFormDialog: React.FC<NodeFormDialogProps> = ({
                     fullWidth
                     margin="normal"
                     error={!!errors.ip_address}
-                    helperText={errors.ip_address?.message}
+                    helperText={errors.ip_address?.message || 'IPv4 address of the node'}
                     placeholder="e.g., 192.168.1.10"
+                    InputProps={{
+                      sx: { fontFamily: '"JetBrains Mono", monospace', fontSize: '0.9rem', color: '#00d4ff' },
+                    }}
                   />
                 )}
               />
@@ -164,8 +227,11 @@ const NodeFormDialog: React.FC<NodeFormDialogProps> = ({
                     fullWidth
                     margin="normal"
                     error={!!errors.ssh_port}
-                    helperText={errors.ssh_port?.message}
+                    helperText={errors.ssh_port?.message || 'Default: 22'}
                     onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
+                    InputProps={{
+                      sx: { fontFamily: '"JetBrains Mono", monospace', fontSize: '0.9rem' },
+                    }}
                   />
                 )}
               />
@@ -183,7 +249,7 @@ const NodeFormDialog: React.FC<NodeFormDialogProps> = ({
                     fullWidth
                     margin="normal"
                     error={!!errors.os_type}
-                    helperText={errors.os_type?.message || 'Select OS type'}
+                    helperText={errors.os_type?.message || 'Select the OS running on this node'}
                   >
                     {OS_OPTIONS.map((option) => (
                       <MenuItem key={option.value} value={option.value}>
@@ -196,10 +262,42 @@ const NodeFormDialog: React.FC<NodeFormDialogProps> = ({
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose}>Cancel</Button>
-          <Button type="submit" variant="contained" color="primary">
-            {node ? 'Save' : 'Add'}
+
+        <DialogActions
+          sx={{
+            px: 3,
+            py: 2,
+            borderTop: '1px solid rgba(0, 212, 255, 0.08)',
+            gap: 1,
+          }}
+        >
+          <Button
+            onClick={handleClose}
+            startIcon={<Close />}
+            sx={{
+              color: '#94a3b8',
+              borderColor: 'rgba(148, 163, 184, 0.3)',
+              '&:hover': { borderColor: '#ff616f', color: '#ff616f', background: 'rgba(255, 97, 111, 0.08)' },
+            }}
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            startIcon={<Save />}
+            sx={{
+              background: 'linear-gradient(135deg, #00d4ff 0%, #7c4dff 100%)',
+              fontWeight: 600,
+              px: 3,
+              '&:hover': {
+                background: 'linear-gradient(135deg, #00bce0 0%, #6a3de8 100%)',
+                boxShadow: '0 0 20px rgba(0, 212, 255, 0.3)',
+              },
+            }}
+          >
+            {node ? 'Save Changes' : 'Add Node'}
           </Button>
         </DialogActions>
       </form>

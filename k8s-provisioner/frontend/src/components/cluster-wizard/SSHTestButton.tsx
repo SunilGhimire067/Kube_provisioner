@@ -57,12 +57,28 @@ const SSHTestButton: React.FC<SSHTestButtonProps> = ({ nodes, sshConfig, onTestC
     <Box>
       <Button
         variant="outlined"
-        color="primary"
         onClick={handleTestSSH}
         disabled={testing || nodes.length === 0}
-        startIcon={testing ? <CircularProgress size={20} /> : <Cable />}
+        startIcon={testing ? <CircularProgress size={20} sx={{ color: '#00d4ff' }} /> : <Cable />}
         fullWidth
-        sx={{ mb: 2 }}
+        sx={{
+          mb: 2,
+          py: 1.5,
+          borderColor: 'rgba(0, 212, 255, 0.3)',
+          color: '#00d4ff',
+          fontWeight: 600,
+          fontSize: '0.9rem',
+          letterSpacing: '0.5px',
+          '&:hover': {
+            borderColor: '#00d4ff',
+            background: 'rgba(0, 212, 255, 0.08)',
+            boxShadow: '0 0 20px rgba(0, 212, 255, 0.15)',
+          },
+          '&.Mui-disabled': {
+            borderColor: 'rgba(100, 116, 139, 0.2)',
+            color: '#475569',
+          },
+        }}
       >
         {testing ? 'Testing SSH Connection...' : 'Test SSH Connection'}
       </Button>
@@ -70,10 +86,20 @@ const SSHTestButton: React.FC<SSHTestButtonProps> = ({ nodes, sshConfig, onTestC
       {testResults && (
         <Alert
           severity={testResults.success ? 'success' : 'error'}
-          sx={{ mt: 2 }}
+          sx={{
+            mt: 2,
+            background: testResults.success
+              ? 'rgba(0, 230, 118, 0.08)'
+              : 'rgba(255, 23, 68, 0.08)',
+            border: `1px solid ${testResults.success ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 23, 68, 0.2)'}`,
+            borderRadius: '8px',
+            '& .MuiAlert-icon': {
+              color: testResults.success ? '#00e676' : '#ff1744',
+            },
+          }}
           icon={testResults.success ? <CheckCircle /> : <Cancel />}
         >
-          <Typography variant="body2" fontWeight="bold" gutterBottom>
+          <Typography variant="body2" fontWeight="bold" gutterBottom sx={{ color: '#e2e8f0' }}>
             {testResults.message || (testResults.success ? 'All connections successful' : 'Connection test failed')}
           </Typography>
 
@@ -84,11 +110,25 @@ const SSHTestButton: React.FC<SSHTestButtonProps> = ({ nodes, sshConfig, onTestC
                   <Chip
                     label={result.node}
                     size="small"
-                    color={result.success ? 'success' : 'error'}
                     icon={result.success ? <CheckCircle /> : <Cancel />}
+                    sx={{
+                      bgcolor: result.success ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 23, 68, 0.1)',
+                      color: result.success ? '#00e676' : '#ff616f',
+                      border: `1px solid ${result.success ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 23, 68, 0.2)'}`,
+                      fontFamily: '"JetBrains Mono", monospace',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      '& .MuiChip-icon': {
+                        color: result.success ? '#00e676' : '#ff616f',
+                        fontSize: 16,
+                      },
+                    }}
                   />
                   {result.error && (
-                    <Typography variant="caption" color="error">
+                    <Typography
+                      variant="caption"
+                      sx={{ color: '#ff616f', fontFamily: '"JetBrains Mono", monospace', fontSize: '0.75rem' }}
+                    >
                       {result.error}
                     </Typography>
                   )}

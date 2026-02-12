@@ -8,7 +8,9 @@ import {
   Grid,
   Paper,
   Alert,
+  Chip,
 } from '@mui/material';
+import { Settings, Hub } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { basicInfoSchema, BasicInfoFormData } from '../../utils/validation-schemas';
@@ -34,7 +36,6 @@ const Step1BasicInfo: React.FC<Step1BasicInfoProps> = ({ data, onUpdate }) => {
 
   const isHA = watch('isHA');
 
-  // Update parent component when form data changes
   useEffect(() => {
     const subscription = watch((formData) => {
       const values = getValues();
@@ -43,34 +44,32 @@ const Step1BasicInfo: React.FC<Step1BasicInfoProps> = ({ data, onUpdate }) => {
     return () => subscription.unsubscribe();
   }, [watch, getValues, onUpdate]);
 
-  // Automatically adjust control plane count when HA is toggled
   useEffect(() => {
     const currentValues = getValues();
     if (isHA && currentValues.controlPlaneCount === 1) {
-      onUpdate({
-        ...currentValues,
-        controlPlaneCount: DEFAULT_CONTROL_PLANE_COUNT_HA,
-      });
+      onUpdate({ ...currentValues, controlPlaneCount: DEFAULT_CONTROL_PLANE_COUNT_HA });
     } else if (!isHA && currentValues.controlPlaneCount > 1) {
-      onUpdate({
-        ...currentValues,
-        controlPlaneCount: 1,
-      });
+      onUpdate({ ...currentValues, controlPlaneCount: 1 });
     }
   }, [isHA, getValues, onUpdate]);
 
   return (
     <Box>
-      <Typography variant="h6" gutterBottom>
-        Basic Information
-      </Typography>
-      <Typography variant="body2" color="text.secondary" gutterBottom>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Settings sx={{ color: '#00d4ff', fontSize: 22 }} />
+        <Typography variant="h6" sx={{ color: '#e2e8f0', fontWeight: 600 }}>
+          Basic Information
+        </Typography>
+      </Box>
+      <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
         Configure basic cluster settings and topology
       </Typography>
 
-      <Paper elevation={0} sx={{ p: 3, mt: 2, border: '1px solid', borderColor: 'divider' }}>
+      <Paper
+        elevation={0}
+        sx={{ p: 3, background: 'rgba(17, 24, 39, 0.5)', border: '1px solid rgba(0, 212, 255, 0.08)' }}
+      >
         <Grid container spacing={3}>
-          {/* Cluster Name */}
           <Grid item xs={12}>
             <Controller
               name="name"
@@ -89,7 +88,6 @@ const Step1BasicInfo: React.FC<Step1BasicInfoProps> = ({ data, onUpdate }) => {
             />
           </Grid>
 
-          {/* Description */}
           <Grid item xs={12}>
             <Controller
               name="description"
@@ -109,23 +107,51 @@ const Step1BasicInfo: React.FC<Step1BasicInfoProps> = ({ data, onUpdate }) => {
             />
           </Grid>
 
-          {/* HA Toggle */}
           <Grid item xs={12}>
             <Controller
               name="isHA"
               control={control}
               render={({ field }) => (
-                <FormControlLabel
-                  control={<Switch {...field} checked={field.value} />}
-                  label={
-                    <Box>
-                      <Typography variant="body1">High Availability (HA) Mode</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Enable HA for production workloads with multiple control plane nodes
-                      </Typography>
-                    </Box>
-                  }
-                />
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    background: isHA ? 'rgba(0, 212, 255, 0.05)' : 'rgba(17, 24, 39, 0.3)',
+                    border: `1px solid ${isHA ? 'rgba(0, 212, 255, 0.2)' : 'rgba(0, 212, 255, 0.06)'}`,
+                    borderRadius: '8px',
+                    transition: 'all 0.3s ease',
+                  }}
+                >
+                  <FormControlLabel
+                    control={<Switch {...field} checked={field.value} />}
+                    label={
+                      <Box sx={{ ml: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body1" sx={{ color: '#e2e8f0', fontWeight: 500 }}>
+                            High Availability (HA) Mode
+                          </Typography>
+                          {isHA && (
+                            <Chip
+                              label="ENABLED"
+                              size="small"
+                              sx={{
+                                bgcolor: 'rgba(0, 230, 118, 0.1)',
+                                color: '#00e676',
+                                border: '1px solid rgba(0, 230, 118, 0.2)',
+                                fontWeight: 700,
+                                fontSize: '0.6rem',
+                                height: 20,
+                              }}
+                            />
+                          )}
+                        </Box>
+                        <Typography variant="caption" sx={{ color: '#64748b' }}>
+                          Enable HA for production workloads with multiple control plane nodes
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Paper>
               )}
             />
           </Grid>
@@ -138,7 +164,6 @@ const Step1BasicInfo: React.FC<Step1BasicInfoProps> = ({ data, onUpdate }) => {
             </Grid>
           )}
 
-          {/* Control Plane Count */}
           <Grid item xs={12} sm={6}>
             <Controller
               name="controlPlaneCount"
@@ -157,15 +182,12 @@ const Step1BasicInfo: React.FC<Step1BasicInfoProps> = ({ data, onUpdate }) => {
                     (isHA ? 'Number of control plane nodes (odd number, min 3)' : 'Single control plane node')
                   }
                   onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 1)}
-                  InputProps={{
-                    inputProps: { min: isHA ? 3 : 1, step: isHA ? 2 : 1 },
-                  }}
+                  InputProps={{ inputProps: { min: isHA ? 3 : 1, step: isHA ? 2 : 1 } }}
                 />
               )}
             />
           </Grid>
 
-          {/* Worker Count */}
           <Grid item xs={12} sm={6}>
             <Controller
               name="workerCount"
@@ -180,22 +202,35 @@ const Step1BasicInfo: React.FC<Step1BasicInfoProps> = ({ data, onUpdate }) => {
                   error={!!errors.workerCount}
                   helperText={errors.workerCount?.message || 'Number of worker nodes for running workloads'}
                   onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
-                  InputProps={{
-                    inputProps: { min: 0, step: 1 },
-                  }}
+                  InputProps={{ inputProps: { min: 0, step: 1 } }}
                 />
               )}
             />
           </Grid>
 
-          {/* Summary */}
           <Grid item xs={12}>
-            <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50' }}>
-              <Typography variant="body2" color="text.secondary">
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                background: 'rgba(0, 212, 255, 0.04)',
+                border: '1px solid rgba(0, 212, 255, 0.1)',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
+              }}
+            >
+              <Hub sx={{ color: '#00d4ff', fontSize: 20 }} />
+              <Typography
+                variant="body2"
+                sx={{ color: '#94a3b8', fontFamily: '"JetBrains Mono", monospace', fontSize: '0.85rem' }}
+              >
                 Total Nodes:{' '}
-                <strong>
-                  {watch('controlPlaneCount') + watch('workerCount')} ({watch('controlPlaneCount')} control plane + {watch('workerCount')} worker)
-                </strong>
+                <Box component="span" sx={{ color: '#00d4ff', fontWeight: 600 }}>
+                  {watch('controlPlaneCount') + watch('workerCount')}
+                </Box>
+                {' '}({watch('controlPlaneCount')} control plane + {watch('workerCount')} worker)
               </Typography>
             </Paper>
           </Grid>

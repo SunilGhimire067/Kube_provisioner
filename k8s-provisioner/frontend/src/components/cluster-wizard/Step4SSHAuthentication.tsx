@@ -12,6 +12,7 @@ import {
   FormLabel,
   Alert,
 } from '@mui/material';
+import { VpnKey } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { sshConfigSchema, SSHConfigFormData } from '../../utils/validation-schemas';
@@ -40,7 +41,6 @@ const Step4SSHAuthentication: React.FC<Step4SSHAuthenticationProps> = ({ data, n
 
   const authMethod = watch('auth_method');
 
-  // Update parent component when form data changes
   useEffect(() => {
     const subscription = watch((formData) => {
       const values = getValues();
@@ -55,16 +55,21 @@ const Step4SSHAuthentication: React.FC<Step4SSHAuthenticationProps> = ({ data, n
 
   return (
     <Box>
-      <Typography variant="h6" gutterBottom>
-        SSH Authentication
-      </Typography>
-      <Typography variant="body2" color="text.secondary" gutterBottom>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <VpnKey sx={{ color: '#ff9100', fontSize: 22 }} />
+        <Typography variant="h6" sx={{ color: '#e2e8f0', fontWeight: 600 }}>
+          SSH Authentication
+        </Typography>
+      </Box>
+      <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
         Configure SSH credentials to access your nodes
       </Typography>
 
-      <Paper elevation={0} sx={{ p: 3, mt: 2, border: '1px solid', borderColor: 'divider' }}>
+      <Paper
+        elevation={0}
+        sx={{ p: 3, background: 'rgba(17, 24, 39, 0.5)', border: '1px solid rgba(0, 212, 255, 0.08)' }}
+      >
         <Grid container spacing={3}>
-          {/* SSH Username */}
           <Grid item xs={12}>
             <Controller
               name="username"
@@ -83,10 +88,11 @@ const Step4SSHAuthentication: React.FC<Step4SSHAuthenticationProps> = ({ data, n
             />
           </Grid>
 
-          {/* Auth Method Selection */}
           <Grid item xs={12}>
             <FormControl component="fieldset">
-              <FormLabel component="legend">Authentication Method</FormLabel>
+              <FormLabel component="legend" sx={{ color: '#94a3b8', '&.Mui-focused': { color: '#00d4ff' } }}>
+                Authentication Method
+              </FormLabel>
               <Controller
                 name="auth_method"
                 control={control}
@@ -100,7 +106,6 @@ const Step4SSHAuthentication: React.FC<Step4SSHAuthenticationProps> = ({ data, n
             </FormControl>
           </Grid>
 
-          {/* Password Authentication */}
           {authMethod === 'password' && (
             <Grid item xs={12}>
               <Controller
@@ -122,7 +127,6 @@ const Step4SSHAuthentication: React.FC<Step4SSHAuthenticationProps> = ({ data, n
             </Grid>
           )}
 
-          {/* Private Key Authentication */}
           {authMethod === 'private_key' && (
             <>
               <Grid item xs={12}>
@@ -138,18 +142,15 @@ const Step4SSHAuthentication: React.FC<Step4SSHAuthenticationProps> = ({ data, n
                       multiline
                       rows={8}
                       error={!!errors.private_key}
-                      helperText={
-                        errors.private_key?.message || 'Paste your SSH private key (OpenSSH format)'
-                      }
+                      helperText={errors.private_key?.message || 'Paste your SSH private key (OpenSSH format)'}
                       placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;...&#10;-----END OPENSSH PRIVATE KEY-----"
                       InputProps={{
-                        sx: { fontFamily: 'monospace', fontSize: '0.875rem' },
+                        sx: { fontFamily: '"JetBrains Mono", monospace', fontSize: '0.8rem' },
                       }}
                     />
                   )}
                 />
               </Grid>
-
               <Grid item xs={12}>
                 <Controller
                   name="passphrase"
@@ -170,7 +171,6 @@ const Step4SSHAuthentication: React.FC<Step4SSHAuthenticationProps> = ({ data, n
             </>
           )}
 
-          {/* SSH Test */}
           <Grid item xs={12}>
             <Alert severity="info" sx={{ mb: 2 }}>
               Test SSH connection before proceeding to ensure credentials are correct and nodes are accessible.
@@ -178,7 +178,6 @@ const Step4SSHAuthentication: React.FC<Step4SSHAuthenticationProps> = ({ data, n
             <SSHTestButton nodes={nodes} sshConfig={getValues()} onTestComplete={handleTestComplete} />
           </Grid>
 
-          {/* Test Result Indicator */}
           {sshTestPassed !== null && (
             <Grid item xs={12}>
               {sshTestPassed ? (

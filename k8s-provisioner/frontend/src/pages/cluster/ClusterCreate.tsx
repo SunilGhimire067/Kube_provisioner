@@ -9,7 +9,9 @@ import {
   Paper,
   CircularProgress,
   Container,
+  Typography,
 } from '@mui/material';
+import { ArrowBack, ArrowForward, Close, RocketLaunch } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import { useClusterWizard } from '../../hooks/useClusterWizard';
 import { clustersAPI } from '../../services/api';
@@ -39,40 +41,37 @@ const ClusterCreate: React.FC = () => {
     handleBack,
   } = useClusterWizard();
 
-  // Validate current step before proceeding
   const canProceedToNextStep = (): boolean => {
     switch (activeStep) {
-      case 0: // Basic Info
+      case 0:
         return (
           wizardData.basicInfo.name.length >= 3 &&
           wizardData.basicInfo.controlPlaneCount > 0 &&
           wizardData.basicInfo.workerCount >= 0
         );
-      case 1: // Component Selection
+      case 1:
         const hasTrafficManagement =
           wizardData.components.traffic_management_type === 'none' ||
           (wizardData.components.traffic_management_type === 'gateway-api' &&
             !!wizardData.components.gateway_api_controller) ||
           (wizardData.components.traffic_management_type === 'ingress' &&
             !!wizardData.components.ingress_controller);
-
         return (
           wizardData.components.kubernetes_version.length > 0 &&
           wizardData.components.cni.length > 0 &&
           wizardData.components.runtime.length > 0 &&
           hasTrafficManagement
         );
-      case 2: // Node Configuration
+      case 2:
         const controlPlaneCount = wizardData.nodes.filter((n) => n.role === 'control-plane').length;
         const workerCount = wizardData.nodes.filter((n) => n.role === 'worker').length;
-
         return (
           wizardData.nodes.length > 0 &&
           controlPlaneCount === wizardData.basicInfo.controlPlaneCount &&
           workerCount === wizardData.basicInfo.workerCount &&
           controlPlaneCount > 0
         );
-      case 3: // SSH Authentication
+      case 3:
         if (wizardData.sshConfig.auth_method === 'password') {
           return (
             wizardData.sshConfig.username.length > 0 &&
@@ -86,7 +85,7 @@ const ClusterCreate: React.FC = () => {
             wizardData.sshConfig.private_key.length > 0
           );
         }
-      case 4: // Review & Provision
+      case 4:
         return true;
       default:
         return false;
@@ -103,9 +102,7 @@ const ClusterCreate: React.FC = () => {
 
   const handleCreateCluster = async () => {
     setIsSubmitting(true);
-
     try {
-      // Transform wizard data to API payload format
       const payload: ClusterCreatePayload = {
         name: wizardData.basicInfo.name,
         description: wizardData.basicInfo.description || undefined,
@@ -148,7 +145,6 @@ const ClusterCreate: React.FC = () => {
 
       const response = await clustersAPI.create(payload);
       const clusterId = response.data.cluster.id;
-
       toast.success('Cluster creation initiated successfully!');
       navigate(`/clusters/${clusterId}`);
     } catch (error: any) {
@@ -191,8 +187,52 @@ const ClusterCreate: React.FC = () => {
 
   return (
     <Container maxWidth="lg">
-      <Box sx={{ py: 4 }}>
-        <Paper elevation={2} sx={{ p: 4 }}>
+      <Box
+        sx={{
+          py: 4,
+          animation: 'fadeIn 0.4s ease-out',
+          '@keyframes fadeIn': {
+            from: { opacity: 0, transform: 'translateY(8px)' },
+            to: { opacity: 1, transform: 'translateY(0)' },
+          },
+        }}
+      >
+        {/* Header */}
+        <Box sx={{ mb: 3 }}>
+          <Typography
+            variant="h4"
+            sx={{
+              fontWeight: 700,
+              background: 'linear-gradient(135deg, #e2e8f0, #94a3b8)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 0.5,
+            }}
+          >
+            Create Cluster
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#64748b' }}>
+            Step {activeStep + 1} of {WIZARD_STEPS.length} — {WIZARD_STEPS[activeStep]}
+          </Typography>
+        </Box>
+
+        <Paper
+          elevation={0}
+          sx={{
+            p: 4,
+            position: 'relative',
+            overflow: 'hidden',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '2px',
+              background: 'linear-gradient(90deg, transparent, #00d4ff, #7c4dff, transparent)',
+            },
+          }}
+        >
           {/* Stepper */}
           <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
             {WIZARD_STEPS.map((label) => (
@@ -206,11 +246,28 @@ const ClusterCreate: React.FC = () => {
           <Box sx={{ minHeight: '400px', mb: 4 }}>{renderStepContent(activeStep)}</Box>
 
           {/* Navigation Buttons */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 2 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              pt: 3,
+              borderTop: '1px solid rgba(0, 212, 255, 0.08)',
+            }}
+          >
             <Button
               disabled={activeStep === 0 || isSubmitting}
               onClick={handleBack}
               variant="outlined"
+              startIcon={<ArrowBack />}
+              sx={{
+                borderColor: 'rgba(0, 212, 255, 0.2)',
+                color: '#94a3b8',
+                '&:hover': {
+                  borderColor: '#00d4ff',
+                  color: '#00d4ff',
+                  bgcolor: 'rgba(0, 212, 255, 0.05)',
+                },
+              }}
             >
               Back
             </Button>
@@ -220,6 +277,16 @@ const ClusterCreate: React.FC = () => {
                 variant="outlined"
                 onClick={() => navigate('/clusters')}
                 disabled={isSubmitting}
+                startIcon={<Close />}
+                sx={{
+                  borderColor: 'rgba(255, 23, 68, 0.2)',
+                  color: '#94a3b8',
+                  '&:hover': {
+                    borderColor: '#ff1744',
+                    color: '#ff1744',
+                    bgcolor: 'rgba(255, 23, 68, 0.05)',
+                  },
+                }}
               >
                 Cancel
               </Button>
@@ -229,15 +296,25 @@ const ClusterCreate: React.FC = () => {
                   variant="contained"
                   onClick={handleCreateCluster}
                   disabled={isSubmitting || !canProceedToNextStep()}
-                  startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
+                  startIcon={isSubmitting ? <CircularProgress size={20} /> : <RocketLaunch />}
+                  sx={{
+                    px: 4,
+                    background: 'linear-gradient(135deg, #00e676 0%, #00b248 100%)',
+                    boxShadow: '0 4px 15px rgba(0, 230, 118, 0.3)',
+                    '&:hover': {
+                      boxShadow: '0 6px 25px rgba(0, 230, 118, 0.5)',
+                    },
+                  }}
                 >
-                  {isSubmitting ? 'Creating Cluster...' : 'Create Cluster'}
+                  {isSubmitting ? 'Provisioning...' : 'Launch Cluster'}
                 </Button>
               ) : (
                 <Button
                   variant="contained"
                   onClick={handleNextStep}
                   disabled={!canProceedToNextStep()}
+                  endIcon={<ArrowForward />}
+                  sx={{ px: 4 }}
                 >
                   Next
                 </Button>

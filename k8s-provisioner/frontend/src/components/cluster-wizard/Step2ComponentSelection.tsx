@@ -11,6 +11,7 @@ import {
   Divider,
   Alert,
 } from '@mui/material';
+import { Extension, NetworkCheck, Traffic, Tune } from '@mui/icons-material';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { componentsSchema, ComponentsFormData } from '../../utils/validation-schemas';
@@ -29,6 +30,10 @@ interface Step2ComponentSelectionProps {
   onUpdate: (data: ComponentsData) => void;
 }
 
+const SectionDivider = () => (
+  <Grid item xs={12}><Divider sx={{ borderColor: 'rgba(0, 212, 255, 0.06)' }} /></Grid>
+);
+
 const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data, onUpdate }) => {
   const {
     control,
@@ -45,7 +50,6 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
   const gatewayController = watch('gateway_api_controller');
   const cni = watch('cni');
 
-  // Update parent component when form data changes
   useEffect(() => {
     const subscription = watch((formData) => {
       const values = getValues();
@@ -56,16 +60,21 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
 
   return (
     <Box>
-      <Typography variant="h6" gutterBottom>
-        Component Selection
-      </Typography>
-      <Typography variant="body2" color="text.secondary" gutterBottom>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Extension sx={{ color: '#7c4dff', fontSize: 22 }} />
+        <Typography variant="h6" sx={{ color: '#e2e8f0', fontWeight: 600 }}>
+          Component Selection
+        </Typography>
+      </Box>
+      <Typography variant="body2" sx={{ color: '#64748b', mb: 3 }}>
         Choose Kubernetes version and cluster components
       </Typography>
 
-      <Paper elevation={0} sx={{ p: 3, mt: 2, border: '1px solid', borderColor: 'divider' }}>
+      <Paper
+        elevation={0}
+        sx={{ p: 3, background: 'rgba(17, 24, 39, 0.5)', border: '1px solid rgba(0, 212, 255, 0.08)' }}
+      >
         <Grid container spacing={3}>
-          {/* Kubernetes Version */}
           <Grid item xs={12}>
             <Controller
               name="kubernetes_version"
@@ -81,20 +90,15 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
                   helperText={errors.kubernetes_version?.message || 'Select the Kubernetes version to install'}
                 >
                   {K8S_VERSIONS.map((version) => (
-                    <MenuItem key={version} value={version}>
-                      {version}
-                    </MenuItem>
+                    <MenuItem key={version} value={version}>{version}</MenuItem>
                   ))}
                 </TextField>
               )}
             />
           </Grid>
 
-          <Grid item xs={12}>
-            <Divider />
-          </Grid>
+          <SectionDivider />
 
-          {/* Container Runtime */}
           <Grid item xs={12}>
             <Controller
               name="runtime"
@@ -119,15 +123,15 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
             />
           </Grid>
 
-          <Grid item xs={12}>
-            <Divider />
-          </Grid>
+          <SectionDivider />
 
-          {/* CNI Plugin */}
           <Grid item xs={12}>
-            <Typography variant="subtitle2" gutterBottom>
-              Network Configuration
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <NetworkCheck sx={{ color: '#00d4ff', fontSize: 18 }} />
+              <Typography variant="subtitle2" sx={{ color: '#94a3b8' }}>
+                Network Configuration
+              </Typography>
+            </Box>
             <Controller
               name="cni"
               control={control}
@@ -151,15 +155,15 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
             />
           </Grid>
 
-          <Grid item xs={12}>
-            <Divider />
-          </Grid>
+          <SectionDivider />
 
-          {/* Traffic Management Type */}
           <Grid item xs={12}>
-            <Typography variant="subtitle2" gutterBottom>
-              Traffic Management
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Traffic sx={{ color: '#7c4dff', fontSize: 18 }} />
+              <Typography variant="subtitle2" sx={{ color: '#94a3b8' }}>
+                Traffic Management
+              </Typography>
+            </Box>
             <Controller
               name="traffic_management_type"
               control={control}
@@ -186,7 +190,6 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
             />
           </Grid>
 
-          {/* Gateway API Controller */}
           {trafficManagementType === 'gateway-api' && (
             <>
               <Grid item xs={12}>
@@ -201,9 +204,7 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
                       fullWidth
                       required
                       error={!!errors.gateway_api_controller}
-                      helperText={
-                        errors.gateway_api_controller?.message || 'Select the Gateway API implementation'
-                      }
+                      helperText={errors.gateway_api_controller?.message || 'Select the Gateway API implementation'}
                     >
                       {GATEWAY_API_CONTROLLERS.map((option) => (
                         <MenuItem
@@ -219,7 +220,6 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
                   )}
                 />
               </Grid>
-
               <Grid item xs={12}>
                 <Alert severity="success">
                   Gateway API is the successor to Ingress and provides more flexibility and standardization for
@@ -229,7 +229,6 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
             </>
           )}
 
-          {/* Traditional Ingress Controller */}
           {trafficManagementType === 'ingress' && (
             <>
               <Grid item xs={12}>
@@ -255,7 +254,6 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
                   )}
                 />
               </Grid>
-
               <Grid item xs={12}>
                 <Alert severity="warning">
                   <strong>Note:</strong> Community-maintained NGINX Ingress Controller is heading toward
@@ -274,15 +272,15 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
             </Grid>
           )}
 
-          <Grid item xs={12}>
-            <Divider />
-          </Grid>
+          <SectionDivider />
 
-          {/* Optional Features */}
           <Grid item xs={12}>
-            <Typography variant="subtitle2" gutterBottom>
-              Optional Features
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Tune sx={{ color: '#ff9100', fontSize: 18 }} />
+              <Typography variant="subtitle2" sx={{ color: '#94a3b8' }}>
+                Optional Features
+              </Typography>
+            </Box>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               <Controller
                 name="monitoring"
@@ -292,8 +290,8 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
                     control={<Checkbox {...field} checked={field.value} />}
                     label={
                       <Box>
-                        <Typography variant="body2">Enable Monitoring</Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="body2" sx={{ color: '#e2e8f0' }}>Enable Monitoring</Typography>
+                        <Typography variant="caption" sx={{ color: '#64748b' }}>
                           Install Prometheus and Grafana for cluster monitoring
                         </Typography>
                       </Box>
@@ -301,7 +299,6 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
                   />
                 )}
               />
-
               <Controller
                 name="logging"
                 control={control}
@@ -310,8 +307,8 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
                     control={<Checkbox {...field} checked={field.value} />}
                     label={
                       <Box>
-                        <Typography variant="body2">Enable Logging</Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="body2" sx={{ color: '#e2e8f0' }}>Enable Logging</Typography>
+                        <Typography variant="caption" sx={{ color: '#64748b' }}>
                           Install EFK/Loki stack for centralized logging
                         </Typography>
                       </Box>
@@ -322,18 +319,27 @@ const Step2ComponentSelection: React.FC<Step2ComponentSelectionProps> = ({ data,
             </Box>
           </Grid>
 
-          {/* Summary */}
           <Grid item xs={12}>
-            <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50' }}>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Selected Configuration:</strong>
-                <br />
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                background: 'rgba(0, 212, 255, 0.04)',
+                border: '1px solid rgba(0, 212, 255, 0.1)',
+                borderRadius: '8px',
+              }}
+            >
+              <Typography
+                variant="body2"
+                sx={{ color: '#94a3b8', fontFamily: '"JetBrains Mono", monospace', fontSize: '0.85rem' }}
+              >
+                <Box component="span" sx={{ color: '#00d4ff', fontWeight: 600 }}>Config:</Box>{' '}
                 Kubernetes {watch('kubernetes_version')} with {watch('cni')} CNI
-                {trafficManagementType === 'gateway-api' && ` and ${gatewayController} Gateway API`}
-                {trafficManagementType === 'ingress' && ` and ${watch('ingress_controller')} ingress`}
+                {trafficManagementType === 'gateway-api' && ` + ${gatewayController} Gateway API`}
+                {trafficManagementType === 'ingress' && ` + ${watch('ingress_controller')} ingress`}
                 {trafficManagementType === 'none' && ' (no traffic management)'}
-                {watch('monitoring') && ', Monitoring enabled'}
-                {watch('logging') && ', Logging enabled'}
+                {watch('monitoring') && ' + Monitoring'}
+                {watch('logging') && ' + Logging'}
               </Typography>
             </Paper>
           </Grid>
